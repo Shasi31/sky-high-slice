@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sky-High Slice - Stack Game</title>
+    <title>Neon Stack - Arcade</title>
     <style>
         body {
             margin: 0;
             padding: 0;
-            background: #0f172a;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #05050a;
+            font-family: 'Segoe UI', system-ui, sans-serif;
             overflow: hidden;
             display: flex;
             justify-content: center;
@@ -19,44 +19,54 @@
             user-select: none;
         }
         canvas {
-            background: linear-gradient(to bottom, #1e293b, #0f172a);
-            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.5);
+            background: radial-gradient(circle at center, #111827 0%, #030712 100%);
+            box-shadow: 0 0 40px rgba(56, 189, 248, 0.15);
+            border-radius: 12px;
+            border: 1px solid rgba(56, 189, 248, 0.2);
             cursor: pointer;
         }
         #ui {
             position: absolute;
-            top: 20px;
+            top: 25px;
             text-align: center;
             pointer-events: none;
+            z-index: 10;
         }
         h1 {
             margin: 0;
-            font-size: 22px;
-            letter-spacing: 2px;
-            color: #38bdf8;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            font-size: 26px;
+            font-weight: 800;
+            letter-spacing: 3px;
+            background: linear-gradient(to right, #38bdf8, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 20px rgba(56, 189, 248, 0.4);
         }
         #best-score {
-            font-size: 14px;
+            font-size: 13px;
+            letter-spacing: 1px;
             color: #fbbf24;
-            margin-top: 2px;
+            margin-top: 4px;
+            text-shadow: 0 0 10px rgba(251, 191, 36, 0.4);
         }
         p {
-            margin: 5px 0 0;
-            font-size: 13px;
-            color: #94a3b8;
+            margin: 8px 0 0;
+            font-size: 12px;
+            color: #64748b;
+            letter-spacing: 1px;
+            text-transform: uppercase;
         }
     </style>
 </head>
 <body>
 
     <div id="ui">
-        <h1 id="score-board">SCORE: 0</h1>
+        <h1 id="score-board">0</h1>
         <div id="best-score">BEST: 0</div>
-        <p>Tap or Click anywhere to drop</p>
+        <p>Tap anywhere to stack</p>
     </div>
 
-    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    <canvas id="gameCanvas" width="380" height="600"></canvas>
 
     <script>
         const canvas = document.getElementById("gameCanvas");
@@ -65,15 +75,15 @@
         const bestScoreBoard = document.getElementById("best-score");
 
         let score = 0;
-        let bestScore = localStorage.getItem("skyHighBestScore") || 0;
+        let bestScore = localStorage.getItem("neonStackBest") || 0;
         bestScoreBoard.innerText = "BEST: " + bestScore;
 
         let gameRunning = true;
         let cameraY = 0;
         let targetCameraY = 0;
 
-        const blockHeight = 30;
-        let initialWidth = 200;
+        const blockHeight = 28;
+        let initialWidth = 180;
         let stack = [];
         let particles = [];
         let screenShake = 0;
@@ -82,30 +92,37 @@
             x: 0,
             y: 0,
             width: initialWidth,
-            speed: 3,
+            speed: 3.5,
             direction: 1,
-            color: 0
+            colorHue: 180
         };
 
         class Particle {
             constructor(x, y, color, width) {
                 this.x = x;
                 this.y = y;
-                this.vx = (Math.random() - 0.5) * 8;
-                this.vy = Math.random() * -6 - 2;
+                this.vx = (Math.random() - 0.5) * 10;
+                this.vy = Math.random() * -8 - 2;
                 this.width = width;
                 this.height = blockHeight;
                 this.color = color;
-                this.gravity = 0.4;
+                this.gravity = 0.45;
+                this.alpha = 1;
             }
             update() {
                 this.vy += this.gravity;
                 this.x += this.vx;
                 this.y += this.vy;
+                this.alpha -= 0.015;
             }
             draw() {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, this.alpha);
                 ctx.fillStyle = this.color;
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = this.color;
                 ctx.fillRect(this.x, this.y - cameraY, this.width, this.height);
+                ctx.restore();
             }
         }
 
@@ -116,14 +133,14 @@
             cameraY = 0;
             targetCameraY = 0;
             gameRunning = true;
-            scoreBoard.innerText = "SCORE: " + score;
+            scoreBoard.innerText = score;
 
-            // Base block centered
+            // Neon glowing base block
             stack.push({
                 x: (canvas.width - initialWidth) / 2,
-                y: canvas.height - 100,
+                y: canvas.height - 90,
                 width: initialWidth,
-                color: "hsl(190, 80%, 50%)"
+                colorHue: 190
             });
 
             resetCurrentBlock();
@@ -132,16 +149,15 @@
         function resetCurrentBlock() {
             let lastBlock = stack[stack.length - 1];
             let newY = lastBlock.y - blockHeight;
-            let hue = (score * 15) % 360;
+            let nextHue = (lastBlock.colorHue + 25) % 360;
 
-            // Start the moving block cleanly on the left side of the screen
             currentBlock = {
                 x: 0,
                 y: newY,
                 width: lastBlock.width,
-                speed: 3 + Math.floor(score / 5) * 0.4,
+                speed: 3.5 + Math.floor(score / 4) * 0.35,
                 direction: 1,
-                color: `hsl(${hue}, 80%, 60%)`
+                colorHue: nextHue
             };
         }
 
@@ -157,43 +173,45 @@
 
             if (overlap <= 0) {
                 gameRunning = false;
-                screenShake = 15;
+                screenShake = 18;
                 
                 if (score > bestScore) {
                     bestScore = score;
-                    localStorage.setItem("skyHighBestScore", bestScore);
+                    localStorage.setItem("neonStackBest", bestScore);
                     bestScoreBoard.innerText = "BEST: " + bestScore;
                 }
                 return;
             }
 
-            if (Math.abs(difference) < 2) {
+            // Perfect alignment snap
+            if (Math.abs(difference) < 3) {
                 overlap = lastBlock.width;
                 currentBlock.x = lastBlock.x;
             }
 
             let newWidth = overlap;
             let newX;
+            let blockColor = `hsl(${currentBlock.colorHue}, 100%, 55%)`;
 
             if (difference > 0) {
                 newX = lastBlock.x + difference;
-                particles.push(new Particle(currentBlock.x + overlap, currentBlock.y, currentBlock.color, currentBlock.width - overlap));
+                particles.push(new Particle(currentBlock.x + overlap, currentBlock.y, blockColor, currentBlock.width - overlap));
             } else {
                 newX = lastBlock.x;
-                particles.push(new Particle(currentBlock.x, currentBlock.y, currentBlock.color, Math.abs(difference)));
+                particles.push(new Particle(currentBlock.x, currentBlock.y, blockColor, Math.abs(difference)));
             }
 
             stack.push({
                 x: newX,
                 y: currentBlock.y,
                 width: newWidth,
-                color: currentBlock.color
+                colorHue: currentBlock.colorHue
             });
 
             score++;
-            scoreBoard.innerText = "SCORE: " + score;
+            scoreBoard.innerText = score;
 
-            if (stack.length > 6) {
+            if (stack.length > 5) {
                 targetCameraY += blockHeight;
             }
 
@@ -209,7 +227,6 @@
         function update() {
             if (gameRunning) {
                 currentBlock.x += currentBlock.speed * currentBlock.direction;
-                // Bounce cleanly off canvas walls
                 if (currentBlock.x + currentBlock.width > canvas.width) {
                     currentBlock.x = canvas.width - currentBlock.width;
                     currentBlock.direction = -1;
@@ -219,69 +236,101 @@
                 }
             }
 
-            cameraY += (targetCameraY - cameraY) * 0.1;
+            cameraY += (targetCameraY - cameraY) * 0.12;
 
             if (screenShake > 0) {
-                screenShake *= 0.9;
+                screenShake *= 0.85;
                 if (screenShake < 0.5) screenShake = 0;
             }
 
             particles.forEach((p, index) => {
                 p.update();
-                if (p.y > canvas.height + cameraY) {
+                if (p.alpha <= 0 || p.y > canvas.height + cameraY) {
                     particles.splice(index, 1);
                 }
             });
+        }
+
+        function drawGrid() {
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.03)";
+            ctx.lineWidth = 1;
+            let gridSize = 30;
+            let offsetY = -(cameraY % gridSize);
+
+            for (let y = offsetY; y < canvas.height; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
         }
 
         function draw() {
             ctx.save();
             
             if (screenShake > 0) {
-                let shakeX = (Math.random() - 0.5) * screenShake;
-                let shakeY = (Math.random() - 0.5) * screenShake;
-                ctx.translate(shakeX, shakeY);
+                ctx.translate((Math.random() - 0.5) * screenShake, (Math.random() - 0.5) * screenShake);
             }
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawGrid();
 
+            // Draw stacked blocks with neon glow
             stack.forEach((block) => {
                 let renderY = block.y - cameraY;
                 if (renderY > -blockHeight && renderY < canvas.height + blockHeight) {
-                    ctx.fillStyle = block.color;
+                    let color = `hsl(${block.colorHue}, 100%, 55%)`;
+                    
+                    ctx.shadowBlur = 12;
+                    ctx.shadowColor = color;
+                    ctx.fillStyle = color;
                     ctx.fillRect(block.x, renderY, block.width, blockHeight);
                     
-                    ctx.fillStyle = "rgba(255, 255, 255, 0.25)";
-                    ctx.fillRect(block.x, renderY, block.width, 4);
+                    // Glossy top edge highlight
+                    ctx.shadowBlur = 0;
+                    ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
+                    ctx.fillRect(block.x, renderY, block.width, 5);
                 }
             });
 
+            // Draw moving active block with glowing trail effect
             if (gameRunning) {
                 let renderY = currentBlock.y - cameraY;
-                ctx.fillStyle = currentBlock.color;
+                let color = `hsl(${currentBlock.colorHue}, 100%, 55%)`;
+
+                ctx.shadowBlur = 18;
+                ctx.shadowColor = color;
+                ctx.fillStyle = color;
                 ctx.fillRect(currentBlock.x, renderY, currentBlock.width, blockHeight);
-                ctx.fillStyle = "rgba(255, 255, 255, 0.25)";
-                ctx.fillRect(currentBlock.x, renderY, currentBlock.width, 4);
+
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
+                ctx.fillRect(currentBlock.x, renderY, currentBlock.width, 5);
             }
 
             particles.forEach(p => p.draw());
 
+            // Game Over overlay screen
             if (!gameRunning) {
-                ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = "rgba(3, 7, 18, 0.9)";
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-                ctx.fillStyle = "#ffffff";
-                ctx.font = "bold 26px sans-serif";
+                ctx.fillStyle = "#f87171";
+                ctx.font = "bold 24px sans-serif";
                 ctx.textAlign = "center";
-                ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 30);
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = "#f87171";
+                ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 25);
 
+                ctx.shadowBlur = 0;
                 ctx.fillStyle = "#fbbf24";
                 ctx.font = "16px sans-serif";
-                ctx.fillText("Final Score: " + score, canvas.width / 2, canvas.height / 2 + 5);
+                ctx.fillText("Score: " + score, canvas.width / 2, canvas.height / 2 + 10);
 
                 ctx.fillStyle = "#38bdf8";
-                ctx.font = "14px sans-serif";
-                ctx.fillText("Tap to Play Again", canvas.width / 2, canvas.height / 2 + 45);
+                ctx.font = "13px sans-serif";
+                ctx.fillText("Tap anywhere to retry", canvas.width / 2, canvas.height / 2 + 45);
             }
 
             ctx.restore();
