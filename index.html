@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bubble Pop - Satisfying Tap Game</title>
+    <title>Magic Balloon Pop - Arcade</title>
     <style>
         body {
             margin: 0;
             padding: 0;
-            background: #0f172a;
+            background: #090d16;
             font-family: 'Segoe UI', system-ui, sans-serif;
             overflow: hidden;
             display: flex;
@@ -18,91 +18,138 @@
             color: white;
             user-select: none;
         }
-        canvas {
-            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
-            box-shadow: 0 0 30px rgba(56, 189, 248, 0.2);
-            border-radius: 16px;
-            cursor: pointer;
+        #game-container {
+            text-align: center;
         }
         #ui {
-            position: absolute;
-            top: 25px;
-            text-align: center;
-            pointer-events: none;
-            z-index: 10;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            width: 380px;
+            padding: 0 5px;
+            box-sizing: border-box;
         }
-        h1 {
-            margin: 0;
-            font-size: 32px;
-            font-weight: 800;
-            letter-spacing: 2px;
-            color: #38bdf8;
-            text-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
-        }
-        p {
-            margin: 5px 0 0;
+        .stat-box {
             font-size: 13px;
-            color: #94a3b8;
+            font-weight: 700;
+            color: #38bdf8;
             letter-spacing: 1px;
-            text-transform: uppercase;
+        }
+        #target-box {
+            color: #fbbf24;
+        }
+        canvas {
+            background: radial-gradient(circle at center, #1e293b 0%, #030712 100%);
+            box-shadow: 0 0 40px rgba(56, 189, 248, 0.25);
+            border-radius: 12px;
+            border: 2px solid #38bdf8; /* Clear boundary border */
+            cursor: pointer;
         }
     </style>
 </head>
 <body>
 
-    <div id="ui">
-        <h1 id="score-display">0</h1>
-        <p>Tap bubbles to pop them!</p>
+    <div id="game-container">
+        <div id="ui">
+            <div class="stat-box" id="score-display">SCORE: 0</div>
+            <div class="stat-box" id="level-display">LEVEL 1</div>
+            <div class="stat-box" id="target-box">TARGET: Pop 8 Blue</div>
+        </div>
+        <canvas id="gameCanvas" width="380" height="560"></canvas>
     </div>
-
-    <canvas id="gameCanvas" width="380" height="600"></canvas>
 
     <script>
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
         const scoreDisplay = document.getElementById("score-display");
+        const levelDisplay = document.getElementById("level-display");
+        const targetBox = document.getElementById("target-box");
 
         let score = 0;
-        let bubbles = [];
-        let particles = [];
+        let level = 1;
+        let bluePoppedCount = 0;
+        let targetBlueCount = 8;
 
-        class Bubble {
-            constructor(x, y) {
-                this.x = x;
-                this.y = y;
-                this.radius = Math.random() * 20 + 25; // Nice big targets, easy to tap!
-                this.color = `hsl(${Math.random() * 360}, 85%, 60%)`;
-                this.vy = -(Math.random() * 1.5 + 1); // Float slowly upward
+        let balloons = [];
+        let particles = [];
+        let floatingTexts = [];
+
+        // Colors: Blue is index 0
+        const colorList = [
+            { name: "Blue", hex: "#38bdf8" },
+            { name: "Pink", hex: "#f43f5e" },
+            { name: "Purple", hex: "#a855f7" },
+            { name: "Green", hex: "#34d399" }
+        ];
+
+        class Balloon {
+            constructor() {
+                this.radius = Math.max(14, 22 - (level * 1.5)); // Gets smaller as levels increase
+                this.x = Math.random() * (canvas.width - 60) + 30;
+                this.y = canvas.height + this.radius + Math.random() * 50;
+                
+                // Choose color (make blue common since it's the target)
+                let colorObj = Math.random() < 0.4 ? colorList[0] : colorList[Math.floor(Math.random() * colorList.length)];
+                this.colorName = colorObj.name;
+                this.color = colorObj.hex;
+
+                // Speed increases with levels
+                this.vy = -(Math.random() * 1.2 + 1.2 + (level * 0.3));
                 this.wobble = Math.random() * Math.PI * 2;
-                this.wobbleSpeed = Math.random() * 0.05 + 0.02;
+                this.wobbleSpeed = Math.random() * 0.06 + 0.03;
+
+                // 15% chance to have a Magic Item inside
+                this.isMagic = Math.random() < 0.15;
             }
+
             update() {
                 this.y += this.vy;
                 this.wobble += this.wobbleSpeed;
-                this.x += Math.sin(this.wobble) * 0.8; // Gentle floating side-to-side
+                this.x += Math.sin(this.wobble) * 0.8;
 
-                // Reset to bottom if it floats off-screen
+                // If balloon reaches the top boundary, it vanishes
                 if (this.y + this.radius < 0) {
-                    this.y = canvas.height + this.radius;
-                    this.x = Math.random() * (canvas.width - 60) + 30;
+                    this.reset();
                 }
             }
+
+            reset() {
+                this.radius = Math.max(14, 22 - (level * 1.5));
+                this.x = Math.random() * (canvas.width - 60) + 30;
+                this.y = canvas.height + this.radius + Math.random() * 30;
+                let colorObj = Math.random() < 0.4 ? colorList[0] : colorList[Math.floor(Math.random() * colorList.length)];
+                this.colorName = colorObj.name;
+                this.color = colorObj.hex;
+                this.vy = -(Math.random() * 1.2 + 1.2 + (level * 0.3));
+                this.isMagic = Math.random() < 0.15;
+            }
+
             draw() {
                 ctx.save();
                 ctx.shadowBlur = 10;
                 ctx.shadowColor = this.color;
-                
-                // Bubble body
+
+                // Balloon body
                 ctx.fillStyle = this.color;
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Glossy reflection highlight (makes it look 3D and premium)
-                ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
+                // Glossy reflection
+                ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
                 ctx.beginPath();
                 ctx.arc(this.x - this.radius * 0.3, this.y - this.radius * 0.3, this.radius * 0.25, 0, Math.PI * 2);
                 ctx.fill();
+
+                // If it has a magic item inside, draw a glowing star symbol
+                if (this.isMagic) {
+                    ctx.fillStyle = "#fbbf24";
+                    ctx.font = "bold 12px sans-serif";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.shadowColor = "#fbbf24";
+                    ctx.fillText("★", this.x, this.y);
+                }
 
                 ctx.restore();
             }
@@ -118,7 +165,7 @@
                 this.vy = Math.sin(angle) * speed;
                 this.color = color;
                 this.alpha = 1;
-                this.radius = Math.random() * 4 + 2;
+                this.radius = Math.random() * 3 + 1;
             }
             update() {
                 this.x += this.vx;
@@ -136,51 +183,118 @@
             }
         }
 
-        // Spawn initial bubbles
-        for (let i = 0; i < 8; i++) {
-            bubbles.push(new Bubble(Math.random() * (canvas.width - 60) + 30, Math.random() * canvas.height));
+        class FloatingText {
+            constructor(x, y, text, color) {
+                this.x = x;
+                this.y = y;
+                this.text = text;
+                this.color = color;
+                this.alpha = 1;
+                this.vy = -1.5;
+            }
+            update() {
+                this.y += this.vy;
+                this.alpha -= 0.025;
+            }
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, this.alpha);
+                ctx.fillStyle = this.color;
+                ctx.font = "bold 14px sans-serif";
+                ctx.textAlign = "center";
+                ctx.shadowBlur = 6;
+                ctx.shadowColor = this.color;
+                ctx.fillText(this.text, this.x, this.y);
+                ctx.restore();
+            }
         }
 
-        // Tap or Click handling - ANY tap near a bubble pops it instantly!
+        function initLevel() {
+            balloons = [];
+            bluePoppedCount = 0;
+            targetBlueCount = 6 + (level * 2); // Target increases every level
+            
+            // Spawn 7 small balloons on screen
+            for (let i = 0; i < 7; i++) {
+                let b = new Balloon();
+                b.y = Math.random() * canvas.height; // Spread them out initially
+                balloons.push(b);
+            }
+            updateUI();
+        }
+
+        function updateUI() {
+            scoreDisplay.innerText = "SCORE: " + score;
+            levelDisplay.innerText = "LEVEL " + level;
+            targetBox.innerText = `POP BLUE: ${bluePoppedCount}/${targetBlueCount}`;
+        }
+
         canvas.addEventListener("click", (e) => {
             let rect = canvas.getBoundingClientRect();
             let clickX = e.clientX - rect.left;
             let clickY = e.clientY - rect.top;
 
-            bubbles.forEach((bubble, index) => {
-                let dist = Math.hypot(clickX - bubble.x, clickY - bubble.y);
-                // Generous hit box (dist < bubble.radius + 15) so it's impossible to miss
-                if (dist < bubble.radius + 15) {
-                    score++;
-                    scoreDisplay.innerText = score;
+            balloons.forEach((b) => {
+                let dist = Math.hypot(clickX - b.x, clickY - b.y);
+                // Generous touch radius so small balloons are easy to tap
+                if (dist < b.radius + 12) {
+                    score += 10;
 
-                    // Create burst particles
-                    for (let p = 0; p < 10; p++) {
-                        particles.push(new Particle(bubble.x, bubble.y, bubble.color));
+                    // Check if it's the target blue balloon
+                    if (b.colorName === "Blue") {
+                        bluePoppedCount++;
                     }
 
-                    // Respawn bubble at the bottom instantly
-                    bubble.y = canvas.height + bubble.radius;
-                    bubble.x = Math.random() * (canvas.width - 60) + 30;
-                    bubble.radius = Math.random() * 20 + 25;
-                    bubble.color = `hsl(${Math.random() * 360}, 85%, 60%)`;
+                    // Check if magic item was inside
+                    if (b.isMagic) {
+                        score += 50;
+                        floatingTexts.push(new FloatingText(b.x, b.y, "+50 MAGIC BONUS!", "#fbbf24"));
+                        // Pop an extra balloon automatically as a bonus!
+                        if (balloons.length > 0) {
+                            let randomExtra = balloons[Math.floor(Math.random() * balloons.length)];
+                            if (randomExtra.colorName === "Blue") bluePoppedCount++;
+                            randomExtra.reset();
+                        }
+                    } else {
+                        floatingTexts.push(new FloatingText(b.x, b.y, "+10", b.color));
+                    }
+
+                    // Burst particles
+                    for (let p = 0; p < 10; p++) {
+                        particles.push(new Particle(b.x, b.y, b.color));
+                    }
+
+                    b.reset();
+                    updateUI();
+
+                    // Check Level Clear condition
+                    if (bluePoppedCount >= targetBlueCount) {
+                        level++;
+                        floatingTexts.push(new FloatingText(canvas.width / 2, canvas.height / 2, `LEVEL ${level} UNLOCKED!`, "#34d399"));
+                        setTimeout(initLevel, 800);
+                    }
                 }
             });
         });
 
         function update() {
-            bubbles.forEach(bubble => bubble.update());
+            balloons.forEach(b => b.update());
             particles.forEach((p, index) => {
                 p.update();
                 if (p.alpha <= 0) particles.splice(index, 1);
+            });
+            floatingTexts.forEach((ft, index) => {
+                ft.update();
+                if (ft.alpha <= 0) floatingTexts.splice(index, 1);
             });
         }
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            bubbles.forEach(bubble => bubble.draw());
+            balloons.forEach(b => b.draw());
             particles.forEach(p => p.draw());
+            floatingTexts.forEach(ft => ft.draw());
         }
 
         function loop() {
@@ -189,6 +303,7 @@
             requestAnimationFrame(loop);
         }
 
+        initLevel();
         loop();
     </script>
 </body>
