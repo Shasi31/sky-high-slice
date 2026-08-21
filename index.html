@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sky-High Slice - Stack Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #0f172a;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: white;
+            user-select: none;
+        }
+        canvas {
+            background: linear-gradient(to bottom, #1e293b, #0f172a);
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.5);
+            cursor: pointer;
+        }
+        #ui {
+            position: absolute;
+            top: 20px;
+            text-align: center;
+            pointer-events: none;
+        }
+        h1 {
+            margin: 0;
+            font-size: 22px;
+            letter-spacing: 2px;
+            color: #38bdf8;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        #best-score {
+            font-size: 14px;
+            color: #fbbf24;
+            margin-top: 2px;
+        }
+        p {
+            margin: 5px 0 0;
+            font-size: 13px;
+            color: #94a3b8;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui">
+        <h1 id="score-board">SCORE: 0</h1>
+        <div id="best-score">BEST: 0</div>
+        <p>Tap or Click anywhere to drop</p>
+    </div>
+
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const scoreBoard = document.getElementById("score-board");
+        const bestScoreBoard = document.getElementById("best-score");
+
+        // Game Variables
+        let score = 0;
+        let bestScore = localStorage.getItem("skyHighBestScore") || 0;
+        bestScoreBoard.innerText = "BEST: " + bestScore;
+
+        let gameRunning = true;
+        let cameraY = 0;
+        let targetCameraY = 0;
+
+        const blockHeight = 30;
+        let initialWidth = 200;
+        let stack = [];
+        let particles = [];
+        let screenShake = 0;
+
+        let currentBlock = {
+            x: 0,
+            y: 0,
+            width: initialWidth,
+            speed: 3,
+            direction: 1,
+            color: 0
+        };
+
+        class Particle {
+            constructor(x, y, color, width) {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 8;
+                this.vy = Math.random() * -6 - 2;
+                this.width = width;
+                this.height = blockHeight;
+                this.color = color;
+                this.gravity = 0.4;
+            }
+            update() {
+                this.vy += this.gravity;
+                this.x += this.vx;
+                this.y += this.vy;
+            }
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y - cameraY, this.width, this.height);
+            }
+        }
+
+        function initGame() {
+            score = 0;
+            stack = [];
+            particles = [];
+            cameraY = 0;
+            targetCameraY = 0;
+            gameRunning = true;
+            scoreBoard.innerText = "SCORE: " + score;
+
+            // Base block
+            stack.push({
+                x: (canvas.width - initialWidth) / 2,
+                y: canvas.height - 100,
+                width: initialWidth,
+                color: "hsl(190, 80%, 50%)"
+            });
+
+            resetCurrentBlock();
+        }
+
+        function resetCurrentBlock() {
+            let lastBlock = stack[stack.length - 1];
+            let newY = lastBlock.y - blockHeight;
+            let hue = (score * 15) % 360;
+
+            currentBlock = {
+                x: -initialWidth,
+                y: newY,
+                width: lastBlock.width,
+                speed: 3 + Math.floor(score / 5) * 0.4,
+                direction: 1,
+                color: `hsl(${hue}, 80%, 60%)`
+            };
+        }
+
+        function dropBlock() {
+            if (!gameRunning) {
+                initGame();
+                return;
+            }
+
+            let lastBlock = stack[stack.length - 1];
+            let difference = currentBlock.x - lastBlock.x;
+            let overlap = currentBlock.width - Math.abs(difference);
+
+            if (overlap <= 0) {
+                gameRunning = false;
+                screenShake = 15; // Trigger screen shake on game over
+                
+                // Check and update best score
+                if (score > bestScore) {
+                    bestScore = score;
+                    localStorage.setItem("skyHighBestScore", bestScore);
+                    bestScoreBoard.innerText = "BEST: " + bestScore;
+                }
+                return;
+            }
+
+            // Perfect drop bonus check (if within 2 pixels)
+            if (Math.abs(difference) < 2) {
+                overlap = lastBlock.width; // Snap perfectly
+                currentBlock.x = lastBlock.x;
+            }
+
+            let newWidth = overlap;
+            let newX;
+
+            if (difference > 0) {
+                newX = lastBlock.x + difference;
+                particles.push(new Particle(currentBlock.x + overlap, currentBlock.y, currentBlock.color, currentBlock.width - overlap));
+            } else {
+                newX = lastBlock.x;
+                particles.push(new Particle(currentBlock.x, currentBlock.y, currentBlock.color, Math.abs(difference)));
+            }
+
+            stack.push({
+                x: newX,
+                y: currentBlock.y,
+                width: newWidth,
+                color: currentBlock.color
+            });
+
+            score++;
+            scoreBoard.innerText = "SCORE: " + score;
+
+            if (stack.length > 6) {
+                targetCameraY += blockHeight;
+            }
+
+            resetCurrentBlock();
+        }
+
+        window.addEventListener("mousedown", dropBlock);
+        window.addEventListener("touchstart", (e) => {
+            e.preventDefault();
+            dropBlock();
+        });
+
+        function update() {
+            if (gameRunning) {
+                currentBlock.x += currentBlock.speed * currentBlock.direction;
+                if (currentBlock.x + currentBlock.width > canvas.width || currentBlock.x < 0) {
+                    currentBlock.direction *= -1;
+                }
+            }
+
+            cameraY += (targetCameraY - cameraY) * 0.1;
+
+            if (screenShake > 0) {
+                screenShake *= 0.9;
+                if (screenShake < 0.5) screenShake = 0;
+            }
+
+            particles.forEach((p, index) => {
+                p.update();
+                if (p.y > canvas.height + cameraY) {
+                    particles.splice(index, 1);
+                }
+            });
+        }
+
+        function draw() {
+            ctx.save();
+            
+            // Apply screen shake offset if triggered
+            if (screenShake > 0) {
+                let shakeX = (Math.random() - 0.5) * screenShake;
+                let shakeY = (Math.random() - 0.5) * screenShake;
+                ctx.translate(shakeX, shakeY);
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            stack.forEach((block) => {
+                let renderY = block.y - cameraY;
+                if (renderY > -blockHeight && renderY < canvas.height + blockHeight) {
+                    ctx.fillStyle = block.color;
+                    ctx.fillRect(block.x, renderY, block.width, blockHeight);
+                    
+                    ctx.fillStyle = "rgba(255, 255, 255, 0.25)";
+                    ctx.fillRect(block.x, renderY, block.width, 4);
+                }
+            });
+
+            if (gameRunning) {
+                let renderY = currentBlock.y - cameraY;
+                ctx.fillStyle = currentBlock.color;
+                ctx.fillRect(currentBlock.x, renderY, currentBlock.width, blockHeight);
+                ctx.fillStyle = "rgba(255, 255, 255, 0.25)";
+                ctx.fillRect(currentBlock.x, renderY, currentBlock.width, 4);
+            }
+
+            particles.forEach(p => p.draw());
+
+            if (!gameRunning) {
+                ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "bold 26px sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 30);
+
+                ctx.fillStyle = "#fbbf24";
+                ctx.font = "16px sans-serif";
+                ctx.fillText("Final Score: " + score, canvas.width / 2, canvas.height / 2 + 5);
+
+                ctx.fillStyle = "#38bdf8";
+                ctx.font = "14px sans-serif";
+                ctx.fillText("Tap to Play Again", canvas.width / 2, canvas.height / 2 + 45);
+            }
+
+            ctx.restore();
+        }
+
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        initGame();
+        loop();
+    </script>
+</body>
+</html>
