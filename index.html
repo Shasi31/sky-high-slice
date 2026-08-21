@@ -64,7 +64,6 @@
         const scoreBoard = document.getElementById("score-board");
         const bestScoreBoard = document.getElementById("best-score");
 
-        // Game Variables
         let score = 0;
         let bestScore = localStorage.getItem("skyHighBestScore") || 0;
         bestScoreBoard.innerText = "BEST: " + bestScore;
@@ -119,7 +118,7 @@
             gameRunning = true;
             scoreBoard.innerText = "SCORE: " + score;
 
-            // Base block
+            // Base block centered
             stack.push({
                 x: (canvas.width - initialWidth) / 2,
                 y: canvas.height - 100,
@@ -135,8 +134,9 @@
             let newY = lastBlock.y - blockHeight;
             let hue = (score * 15) % 360;
 
+            // Start the moving block cleanly on the left side of the screen
             currentBlock = {
-                x: -initialWidth,
+                x: 0,
                 y: newY,
                 width: lastBlock.width,
                 speed: 3 + Math.floor(score / 5) * 0.4,
@@ -157,9 +157,8 @@
 
             if (overlap <= 0) {
                 gameRunning = false;
-                screenShake = 15; // Trigger screen shake on game over
+                screenShake = 15;
                 
-                // Check and update best score
                 if (score > bestScore) {
                     bestScore = score;
                     localStorage.setItem("skyHighBestScore", bestScore);
@@ -168,9 +167,8 @@
                 return;
             }
 
-            // Perfect drop bonus check (if within 2 pixels)
             if (Math.abs(difference) < 2) {
-                overlap = lastBlock.width; // Snap perfectly
+                overlap = lastBlock.width;
                 currentBlock.x = lastBlock.x;
             }
 
@@ -211,8 +209,13 @@
         function update() {
             if (gameRunning) {
                 currentBlock.x += currentBlock.speed * currentBlock.direction;
-                if (currentBlock.x + currentBlock.width > canvas.width || currentBlock.x < 0) {
-                    currentBlock.direction *= -1;
+                // Bounce cleanly off canvas walls
+                if (currentBlock.x + currentBlock.width > canvas.width) {
+                    currentBlock.x = canvas.width - currentBlock.width;
+                    currentBlock.direction = -1;
+                } else if (currentBlock.x < 0) {
+                    currentBlock.x = 0;
+                    currentBlock.direction = 1;
                 }
             }
 
@@ -234,7 +237,6 @@
         function draw() {
             ctx.save();
             
-            // Apply screen shake offset if triggered
             if (screenShake > 0) {
                 let shakeX = (Math.random() - 0.5) * screenShake;
                 let shakeY = (Math.random() - 0.5) * screenShake;
